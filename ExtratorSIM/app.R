@@ -1,5 +1,5 @@
 # ==============================================================================
-# EXTRATOR SIH - Múltiplos anos × meses × cidades
+# EXTRATOR SIM - Óbitos (anos × cidades) - DO e DOFET
 # Versão standalone com manual embutido + avisos
 # ==============================================================================
 # COMO USAR:
@@ -10,7 +10,7 @@
 
 # 0. AVISO INICIAL -----------------------------------------------------------
 cat("\n======================================================================\n")
-cat("   EXTRATOR SIH - INICIANDO\n")
+cat("   EXTRATOR SIM - INICIANDO\n")
 cat("======================================================================\n")
 
 # 1. INSTALAÇÃO AUTOMÁTICA DE PACOTES ---------------------------------------
@@ -58,22 +58,19 @@ suppressPackageStartupMessages({
 })
 
 # 2. CONFIGURAÇÃO DE AMBIENTE -----------------------------------------------
-# Detecta a pasta do app automaticamente (funciona com duplo clique)
-pasta_app <- getwd()
-RAIZ      <- file.path(pasta_app, "Tabelas_Todas")
+pasta_app  <- getwd()
+RAIZ       <- file.path(pasta_app, "Tabelas_Todas")
 MUNICIPIOS <- file.path(RAIZ, "_METADADOS",
                         "br_bd_diretorios_brasil_municipio.parquet")
 
-# Cria estrutura se não existir
 dir.create(file.path(RAIZ, "_METADADOS"), recursive = TRUE, showWarnings = FALSE)
-dir.create(file.path(RAIZ, "SIH", "FINAL"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(RAIZ, "SIM", "FINAL"), recursive = TRUE, showWarnings = FALSE)
 
 cat("📂 Pasta do app   :", pasta_app, "\n")
 cat("📂 Pasta de dados :", RAIZ, "\n")
 if (!file.exists(MUNICIPIOS)) {
   cat("⚠  Metadados de municípios ausentes:", MUNICIPIOS, "\n")
-  cat("   O app vai rodar, mas não conseguirá carregar a lista de cidades.\n")
-  cat("   Coloque o arquivo parquet em:", MUNICIPIOS, "\n")
+  cat("   O app roda, mas a lista de cidades ficará vazia.\n")
 }
 
 MESES_PT <- c("Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -87,15 +84,15 @@ ESTADOS_BR <- c("Acre"="AC","Alagoas"="AL","Amapá"="AP","Amazonas"="AM",
   "Rio Grande do Sul"="RS","Rondônia"="RO","Roraima"="RR","Santa Catarina"="SC",
   "São Paulo"="SP","Sergipe"="SE","Tocantins"="TO")
 
-# Sistemas SIH disponíveis
-SISTEMAS_SIH <- c(
-  "SIH - AIH Reduzida (RD)"   = "SIH-RD",
-  "SIH - AIH Rejeitada (RJ)"  = "SIH-RJ"
+# SIM tem 2 sistemas, ambos anuais
+SISTEMAS_SIM <- c(
+  "SIM - Mortalidade Geral (DO)"    = "SIM-DO",
+  "SIM - Mortalidade Fetal (DOFET)" = "SIM-DOFET"
 )
 
 ANOS_DISPONIVEIS <- 2000:2026
 
-# 3. UI DO MANUAL (NOVA ABA) -------------------------------------------------
+# 3. UI DO MANUAL ------------------------------------------------------------
 ui_manual <- function() {
   fluidPage(
     tags$head(tags$style(HTML("
@@ -112,21 +109,22 @@ ui_manual <- function() {
         padding:12px 16px; border-radius:8px; margin-bottom:14px; }
     "))),
 
-    titlePanel(h2(icon("book-open"), " Manual do Extrator SIH",
+    titlePanel(h2(icon("skull-crossbones"), " Manual do Extrator SIM",
                   style = "color:#2c3e50;")),
     br(),
 
     div(class = "manual-box",
       h4(icon("rocket"), " Início rápido"),
-      p("Este app baixa dados do SIH (Sistema de Informações Hospitalares) do DATASUS."),
+      p("Este app baixa os microdados do SIM (Sistema de Informações sobre Mortalidade) do DATASUS."),
       tags$ol(
-        tags$li(strong("Escolha o sistema"), " (RD = AIH Reduzida, RJ = AIH Rejeitada)."),
+        tags$li(strong("Escolha o sistema"), " (DO = óbitos gerais, DOFET = óbitos fetais)."),
         tags$li(strong("Escolha a UF"), " (ex.: PR)."),
         tags$li(strong("Marque os anos"), " (pode selecionar vários)."),
         tags$li(strong("Marque os municípios"), " (pode selecionar vários)."),
-        tags$li(strong("Marque os meses"), " (ou deixe 'Baixar TODOS os 12 meses')."),
         tags$li(strong("Clique em Processar"), " e aguarde.")
-      )
+      ),
+      p(tags$em("O SIM é anual: não há seleção de mês."),
+        " Um arquivo por ano/cidade.")
     ),
 
     div(class = "manual-alert",
@@ -136,80 +134,87 @@ ui_manual <- function() {
 
     div(class = "manual-box",
       h4(icon("folder-tree"), " Estrutura de pastas"),
-      p("Os arquivos são salvos em ", code("Tabelas_Todas/SIH/FINAL/"), ":"),
+      p("Os arquivos são salvos em ", code("Tabelas_Todas/SIM/FINAL/"), ":"),
       div(class = "manual-code",
-        "ExtratorSIH/", br(),
+        "ExtratorSIM/", br(),
         "  └─ Tabelas_Todas/", br(),
         "      ├─ _METADADOS/", br(),
         "      │   └─ br_bd_diretorios_brasil_municipio.parquet", br(),
-        "      └─ SIH/FINAL/", br(),
-        "          └─ FINAL_SIH-RD_PR_Irati_2024_01.parquet"
+        "      └─ SIM/FINAL/", br(),
+        "          ├─ FINAL_SIM-DO_PR_IRATI_2023.parquet", br(),
+        "          └─ FINAL_SIM-DOFET_PR_IRATI_2023.parquet"
       ),
-      p("Formato do nome: ", code("FINAL_<SISTEMA>_<UF>_<CIDADE>_<ANO>_<MÊS>.parquet"))
+      p("Formato do nome: ", code("FINAL_<SISTEMA>_<UF>_<CIDADE>_<ANO>.parquet"))
     ),
 
     div(class = "manual-box",
       h4(icon("database"), " Sobre o metadados de municípios"),
       p("O app lê a lista de cidades deste arquivo:"),
       div(class = "manual-code", "Tabelas_Todas/_METADADOS/br_bd_diretorios_brasil_municipio.parquet"),
-      p("Se você não tiver esse arquivo, baixe no portal Base dos Dados:"),
+      p("Se você não tiver, baixe em:"),
       tags$a(href = "https://basedosdados.org/dataset/br-bd-diretorios-brasil",
              target = "_blank", "basedosdados.org → br_bd_diretorios_brasil"),
-      p("Depois coloque-o dentro da pasta ", code("_METADADOS/"), ".")
+      p("Depois coloque dentro de ", code("_METADADOS/"), ".")
     ),
 
     div(class = "manual-box",
-      h4(icon("gears"), " Como funciona por dentro"),
-      p("O algoritmo otimiza o download em 3 laços aninhados:"),
+      h4(icon("gears"), " Como o filtro de município funciona"),
+      p("O SIM tem ", strong("duas colunas de município"), ":"),
       tags$ul(
-        tags$li(strong("Ano → Mês → Cidade.")),
-        tags$li("Para cada ", strong("mês"), ", ele baixa os dados ", strong("uma vez"), " (do estado todo), ",
-                "filtra todas as cidades do mês e depois ", strong("libera o cache"), " (memória)."),
-        tags$li("Isso evita baixar o mesmo mês várias vezes para cidades diferentes.")
+        tags$li(code("CODMUNRES"), " / ", code("MUNIC_RES"),
+                " → município de ", strong("residência do falecido")),
+        tags$li(code("CODMUNOCOR"), " / ", code("MUNIC_OCOR"),
+                " → município de ", strong("ocorrência do óbito"))
       ),
-      p("Timeout por requisição: ", strong("600 segundos"), " (10 min)."),
-      p("Filtro de município no SIH: usa as colunas de ",
-        strong("residência"), " (", code("MUNIC_RES"), ") e ",
-        strong("estabelecimento"), " (", code("MUNIC_MOV"), ").")
+      p("O filtro mantém as linhas onde ",
+        strong("residência = cidade escolhida"), " OU ",
+        strong("ocorrência = cidade escolhida"),
+        ". Isso captura óbitos de moradores mesmo que tenham ocorrido em outro município."),
+      p("Se você quer só uma das visões, edite a linha do ",
+        code("filter(res_join == codigo | occ_join == codigo)"),
+        " no ", code("server"), " — troque ", code("|"), " por ", code("&"), " para interseção.")
     ),
 
     div(class = "manual-box",
-      h4(icon("table"), " Aba Log"),
-      p("Mostra o resumo final:"),
+      h4(icon("triangle-exclamation"), " Diferenças DO × DOFET"),
       tags$ul(
-        tags$li("Status (Concluído / Sem dados)"),
-        tags$li("Total de linhas baixadas"),
-        tags$li("Cidades com dados encontrados"),
-        tags$li("Arquivos gerados (caminho completo)")
+        tags$li(strong("DO"), " = óbitos gerais (todas as idades, incluindo fetais em algumas codificações)."),
+        tags$li(strong("DOFET"), " = óbitos fetais (≥ 22 semanas de gestação ou ≥ 500g)."),
+        tags$li("Use os dois em conjunto se quiser mortalidade total, ou só DO para mortalidade geral.")
       )
     ),
 
     div(class = "manual-box",
+      h4(icon("table"), " Aba Log"),
+      p("Mostra o resumo final: status, linhas, cidades com dados, arquivos gerados e caminho completo.")
+    ),
+
+    div(class = "manual-box",
       h4(icon("file-export"), " Aba Arquivos"),
-      p("Tabela com nome e tamanho (MB) de cada arquivo gerado.")
+      p("Tabela com nome e tamanho (MB) de cada parquet gerado, ordenada por data de criação.")
     ),
 
     div(class = "manual-ok",
-      icon("circle-check"), strong(" Dica:"), " combinações sem dados (ex.: cidade pequena em mês com poucas internações) ",
-      "aparecem no log como 'combinações sem dados' — é normal, não é erro."
+      icon("circle-check"), strong(" Dica:"), " cidades pequenas podem ter poucos óbitos em anos iniciais. ",
+      "Combinações sem dados aparecem no log — é normal, não é erro."
     ),
 
     div(class = "manual-box",
       h4(icon("bug"), " Solução de problemas"),
       tags$ul(
-        tags$li(strong("“Nenhum município aparece”:"), " verifique se o arquivo ",
-                code("_METADADOS/br_bd_diretorios_brasil_municipio.parquet"), " existe."),
-        tags$li(strong("“Timeout ao baixar”:"), " reduza a quantidade de anos/meses por vez."),
-        tags$li(strong("“Erro de conexão com DATASUS”:"), " o servidor do DATASUS pode estar instável; tente de novo mais tarde."),
-        tags$li(strong("“Navegador não abriu”:"), " copie a URL do console (ex.: ",
+        tags$li(strong("“Nenhum município aparece”:"), " confira se o parquet está em ",
+                code("_METADADOS/"), "."),
+        tags$li(strong("“Timeout ao baixar”:"), " reduza a quantidade de anos por vez."),
+        tags$li(strong("“Erro de conexão com DATASUS”:"), " o FTP do DATASUS pode estar instável; tente mais tarde."),
+        tags$li(strong("“Navegador não abriu”:"), " copie a URL do console (",
                 code("http://127.0.0.1:XXXX"), ") e cole no navegador."),
-        tags$li(strong("“Acentos quebrados nos arquivos”:"), " o app já converte de latin1 para UTF-8 automaticamente.")
+        tags$li(strong("“Acentos quebrados”:"), " o app já converte latin1 → UTF-8 automaticamente.")
       )
     ),
 
     div(class = "manual-box",
       h4(icon("info-circle"), " Sobre"),
-      p("Extrator SIH - versão standalone."),
+      p("Extrator SIM - versão standalone."),
       p("Fonte: DATASUS via pacote ", code("microdatasus"), ".")
     )
   )
@@ -218,7 +223,7 @@ ui_manual <- function() {
 # 4. UI PRINCIPAL -----------------------------------------------------------
 ui <- navbarPage(
   id    = "navbar_id",
-  title = tags$div(icon("hospital"), " Extrator SIH"),
+  title = tags$div(icon("skull-crossbones"), " Extrator SIM"),
   header = tags$head(tags$style(HTML(".navbar-default { background-color:#2c3e50; }
                                       .navbar-default .navbar-brand,
                                       .navbar-default .navbar-nav > li > a { color:#ecf0f1; }"))),
@@ -229,7 +234,7 @@ ui <- navbarPage(
       sidebarLayout(
         sidebarPanel(
           width = 3,
-          selectInput("sistema", "Sistema SIH:", choices = SISTEMAS_SIH),
+          selectInput("sistema", "Sistema SIM:", choices = SISTEMAS_SIM),
           selectInput("uf", "UF:", choices = ESTADOS_BR, selected = "PR"),
 
           pickerInput(
@@ -255,29 +260,12 @@ ui <- navbarPage(
             )
           ),
 
-          prettyCheckbox("todos_meses", "Baixar TODOS os 12 meses",
-                         value = TRUE, icon = icon("check"),
-                         status = "success", shape = "curve"),
-
-          conditionalPanel(
-            condition = "!input.todos_meses",
-            pickerInput(
-              "meses", "Meses a baixar:",
-              choices = setNames(1:12, MESES_PT), selected = 1, multiple = TRUE,
-              options = list(
-                `actions-box` = TRUE,
-                `select-all-text` = "Todos",
-                `deselect-all-text` = "Nenhum"
-              )
-            )
-          ),
-
           actionButton("processar", "Processar", class = "btn-primary btn-lg",
                        icon = icon("play"), style = "width:100%;"),
           br(), br(),
-          helpText("Salva em: ", tags$code("Tabelas_Todas/SIH/FINAL/")),
-          helpText("1 arquivo por cidade/ano/mês. Timeout: 600s."),
-          helpText("Ordem: ano → mês → cidades (cache liberado a cada mês).")
+          helpText("Salva em: ", tags$code("Tabelas_Todas/SIM/FINAL/")),
+          helpText("1 arquivo por cidade/ano. Timeout: 600s."),
+          helpText("O SIM é anual (sem coluna de mês).")
         ),
 
         mainPanel(
@@ -338,21 +326,18 @@ server <- function(input, output, session) {
     )
   })
 
-  # Salvar Parquet (1 por cidade/ano/mês) — pasta SIH
-  salvar_parquet <- function(df, sistema, uf, ano, mes, mun_nome) {
-    path_final <- file.path(RAIZ, "SIH", "FINAL")
+  salvar_parquet <- function(df, sistema, uf, ano, mun_nome) {
+    path_final <- file.path(RAIZ, "SIM", "FINAL")
     if (!dir.exists(path_final)) dir.create(path_final, recursive = TRUE)
 
     names(df) <- make.names(names(df))
     df <- df %>% mutate(across(where(is.character),
                                ~ iconv(., from = "latin1", to = "UTF-8", sub = "")))
 
-    mes_fmt <- sprintf("%02d", as.numeric(mes))
-
     nome <- if (!is.null(mun_nome) && mun_nome != "") {
-      paste0("FINAL_", sistema, "_", uf, "_", mun_nome, "_", ano, "_", mes_fmt, ".parquet")
+      paste0("FINAL_", sistema, "_", uf, "_", mun_nome, "_", ano, ".parquet")
     } else {
-      paste0("FINAL_", sistema, "_", uf, "_", ano, "_", mes_fmt, ".parquet")
+      paste0("FINAL_", sistema, "_", uf, "_", ano, ".parquet")
     }
 
     caminho <- file.path(path_final, nome)
@@ -394,107 +379,96 @@ server <- function(input, output, session) {
       municipios_df() %>% filter(id6 == cod) %>% pull(nome) %>% first()
     })
 
-    meses <- if (isTRUE(input$todos_meses)) 1:12 else as.integer(input$meses)
-    if (is.null(meses) || length(meses) == 0) {
-      showNotification("Selecione ao menos um mês.", type = "warning")
-      stats$status <- "Aguardando seleção"
-      return()
-    }
-    meses <- sort(unique(meses))
-
     cat("\n═══════════════════════════════════════════\n")
-    cat("SISTEMA:", input$sistema, "\n")
+    cat("SISTEMA:", input$sistema, "(anual)\n")
     cat("ANOS:", length(anos), "→", paste(anos, collapse = ", "), "\n")
-    cat("MESES:", length(meses), "→", paste(MESES_PT[meses], collapse = ", "), "\n")
     cat("CIDADES:", length(cidades_cod), "→", paste(cidades_nomes, collapse = " | "), "\n")
-    cat("TOTAL DE TAREFAS:", length(anos) * length(meses) * length(cidades_cod), "\n")
+    cat("TOTAL DE TAREFAS:", length(anos) * length(cidades_cod), "\n")
     cat("═══════════════════════════════════════════\n\n")
 
-    total_linhas <- 0
-    arquivos     <- character(0)
-    falhas       <- character(0)
-    cidades_ok   <- character(0)
-    total_tarefas <- length(anos) * length(meses) * length(cidades_cod)
+    total_linhas  <- 0
+    arquivos      <- character(0)
+    falhas        <- character(0)
+    cidades_ok    <- character(0)
+    total_tarefas <- length(anos) * length(cidades_cod)
     k <- 0
 
-    withProgress(message = "Baixando SIH...", value = 0, {
+    withProgress(message = "Baixando SIM...", value = 0, {
       for (a in seq_along(anos)) {
         ano_atual <- anos[a]
-        for (j in seq_along(meses)) {
-          m <- meses[j]
-          cat(sprintf("\n⬇️  [Ano %d/%d | Mês %d/%d] Baixando %s - %d - %s\n",
-                      a, length(anos), j, length(meses),
-                      input$uf, ano_atual, MESES_PT[m]))
 
-          dados_full <- tryCatch(
-            fetch_datasus(
-              year_start = ano_atual, year_end = ano_atual,
-              month_start = m, month_end = m,
-              uf = input$uf, information_system = input$sistema,
-              timeout = 600
-            ),
-            error = function(e) {
-              cat("   ⚠️ erro/timeout:", conditionMessage(e), "\n")
-              NULL
-            }
-          )
+        cat(sprintf("\n⬇️  [Ano %d/%d] Baixando %s - %s - %d\n",
+                    a, length(anos), input$sistema, input$uf, ano_atual))
 
-          if (is.null(dados_full) || nrow(dados_full) == 0) {
-            cat("   ⚠️ Sem dados para", ano_atual, "/", MESES_PT[m], "\n")
-            falhas <- c(falhas, paste("(todos)", ano_atual, MESES_PT[m], sep = " / "))
-            k <- k + length(cidades_cod)
-            incProgress(length(cidades_cod) / total_tarefas * 0.97,
-                        detail = paste(ano_atual, MESES_PT[m], "- sem dados"))
+        dados_full <- tryCatch(
+          fetch_datasus(
+            year_start = ano_atual, year_end = ano_atual,
+            uf = input$uf, information_system = input$sistema,
+            timeout = 600
+          ),
+          error = function(e) {
+            cat("   ⚠️ erro/timeout:", conditionMessage(e), "\n")
+            NULL
+          }
+        )
+
+        if (is.null(dados_full) || nrow(dados_full) == 0) {
+          cat("   ⚠️ Sem dados para", ano_atual, "\n")
+          falhas <- c(falhas, paste("(todos)", ano_atual))
+          k <- k + length(cidades_cod)
+          incProgress(length(cidades_cod) / total_tarefas * 0.97,
+                      detail = paste(ano_atual, "- sem dados"))
+          next
+        }
+
+        names(dados_full) <- trimws(names(dados_full))
+        cat("   📦", format(nrow(dados_full), big.mark = "."), "linhas baixadas\n")
+
+        for (i in seq_along(cidades_cod)) {
+          cod_cidade <- cidades_cod[i]
+          nom_cidade <- cidades_nomes[i]
+          k <- k + 1
+
+          incProgress(1 / total_tarefas * 0.97,
+                      detail = paste(ano_atual, "-", nom_cidade))
+
+          dados <- dados_full
+
+          # SIM: residência do falecido (CODMUNRES/MUNIC_RES)
+          #      ocorrência do óbito    (CODMUNOCOR/MUNIC_OCOR)
+          col_res <- intersect(names(dados),
+                               c("CODMUNRES","MUNIC_RES","CODMUNICIPIO_RES"))[1]
+          col_occ <- intersect(names(dados),
+                               c("CODMUNOCOR","MUNIC_OCOR","CODMUNICIPIO_OCOR"))[1]
+
+          if (!is.na(col_res) && !is.na(col_occ)) {
+            dados <- dados %>%
+              mutate(
+                res_join = substr(str_pad(as.character(!!sym(col_res)), 6, pad="0"), 1, 6),
+                occ_join = substr(str_pad(as.character(!!sym(col_occ)), 6, pad="0"), 1, 6)
+              ) %>%
+              filter(res_join == cod_cidade | occ_join == cod_cidade) %>%
+              select(-res_join, -occ_join)
+          }
+
+          if (nrow(dados) == 0) {
+            cat(sprintf("   ⚠️ %s: sem dados em %d\n", nom_cidade, ano_atual))
+            falhas <- c(falhas, paste(nom_cidade, ano_atual, sep = " / "))
             next
           }
 
-          names(dados_full) <- trimws(names(dados_full))
-          cat("   📦", format(nrow(dados_full), big.mark = "."), "linhas baixadas\n")
-
-          for (i in seq_along(cidades_cod)) {
-            cod_cidade <- cidades_cod[i]
-            nom_cidade <- cidades_nomes[i]
-            k <- k + 1
-
-            incProgress(1 / total_tarefas * 0.97,
-                        detail = paste(ano_atual, MESES_PT[m], "-", nom_cidade))
-
-            dados <- dados_full
-
-            # Colunas do SIH: MUNIC_RES (residência) e MUNIC_MOV (estabelecimento)
-            col_res <- intersect(names(dados), c("MUNIC_RES","CODMUNRES","MUNICIPIO_RES"))[1]
-            col_mov <- intersect(names(dados), c("MUNIC_MOV","MUNIC_OCOR","CODMUNMOV"))[1]
-
-            if (!is.na(col_res) && !is.na(col_mov)) {
-              dados <- dados %>%
-                mutate(
-                  res_join = substr(str_pad(as.character(!!sym(col_res)), 6, pad="0"), 1, 6),
-                  mov_join = substr(str_pad(as.character(!!sym(col_mov)), 6, pad="0"), 1, 6)
-                ) %>%
-                filter(res_join == cod_cidade | mov_join == cod_cidade) %>%
-                select(-res_join, -mov_join)
-            }
-
-            if (nrow(dados) == 0) {
-              cat(sprintf("   ⚠️ %s: sem dados em %d/%s\n",
-                          nom_cidade, ano_atual, MESES_PT[m]))
-              falhas <- c(falhas, paste(nom_cidade, ano_atual, MESES_PT[m], sep = " / "))
-              next
-            }
-
-            caminho <- salvar_parquet(dados, input$sistema, input$uf,
-                                      ano_atual, m, nom_cidade)
-            arquivos     <- c(arquivos, caminho)
-            total_linhas <- total_linhas + nrow(dados)
-            if (!(nom_cidade %in% cidades_ok)) cidades_ok <- c(cidades_ok, nom_cidade)
-            rm(dados)
-          }
-
-          cat(sprintf("🗑️  Cache %d/%s liberado (%.0f MB)\n",
-                      ano_atual, MESES_PT[m],
-                      as.numeric(object.size(dados_full)) / 1024^2))
-          rm(dados_full); gc(verbose = FALSE)
+          caminho <- salvar_parquet(dados, input$sistema, input$uf,
+                                    ano_atual, nom_cidade)
+          arquivos     <- c(arquivos, caminho)
+          total_linhas <- total_linhas + nrow(dados)
+          if (!(nom_cidade %in% cidades_ok)) cidades_ok <- c(cidades_ok, nom_cidade)
+          rm(dados)
         }
+
+        cat(sprintf("🗑️  Cache %d liberado (%.0f MB)\n",
+                    ano_atual,
+                    as.numeric(object.size(dados_full)) / 1024^2))
+        rm(dados_full); gc(verbose = FALSE)
       }
       incProgress(0.03, detail = "Concluído!")
     })
@@ -520,6 +494,7 @@ server <- function(input, output, session) {
     cat("╔══════════════════════════════════════════════════╗\n")
     cat("║              PROCESSAMENTO CONCLUÍDO             ║\n")
     cat("╚══════════════════════════════════════════════════╝\n\n")
+    cat("Sistema:", input$sistema, "\n")
     cat("Status:", stats$status, "\n")
     cat("Linhas totais:", format(stats$linhas, big.mark = "."), "\n")
     cat("Cidades com dados:", paste(stats$cidades_ok, collapse = ", "), "\n")
@@ -540,33 +515,33 @@ server <- function(input, output, session) {
     datatable(df, options = list(pageLength = 12), rownames = FALSE)
   })
 
-  # Modal de boas-vindas na 1ª execução
   ja_mostrou <- reactiveVal(FALSE)
   observe({
     if (!ja_mostrou()) {
       ja_mostrou(TRUE)
       showModal(modalDialog(
-        title = tags$div(icon("hand-wave"), " Bem-vindo ao Extrator SIH!"),
+        title = tags$div(icon("hand-wave"), " Bem-vindo ao Extrator SIM!"),
         size = "l", easyClose = TRUE,
         footer = tagList(
-          actionButton("ir_manual_sih", "📖 Abrir Manual", class = "btn-info"),
+          actionButton("ir_manual_sim", "📖 Abrir Manual", class = "btn-info"),
           modalButton("✅ Começar")
         ),
         tags$div(class = "manual-box",
           style = "border-left-color:#198754;",
-          tags$p(tags$b("Este app baixa dados do DATASUS/SIH."), " Tudo roda localmente."),
+          tags$p(tags$b("Este app baixa microdados do SIM/DATASUS."), " Tudo roda localmente."),
           tags$ul(
             tags$li("Use o menu superior para alternar entre ", strong("Extrator"), " e ", strong("Manual"), "."),
-            tags$li("Selecione sistema, UF, anos, municípios e meses; clique em ", strong("Processar"), "."),
-            tags$li("Os arquivos vão para ", code("Tabelas_Todas/SIH/FINAL/"), "."),
-            tags$li("Se a lista de cidades estiver vazia, falta o arquivo em ",
+            tags$li("Escolha ", strong("DO"), " (óbitos gerais) ou ", strong("DOFET"), " (fetais); ",
+                    "selecione UF, anos e municípios; clique em ", strong("Processar"), "."),
+            tags$li("Arquivos vão para ", code("Tabelas_Todas/SIM/FINAL/"), "."),
+            tags$li("Se a lista de cidades estiver vazia, falta o parquet em ",
                     code("_METADADOS/"), " — veja o Manual.")
           )
         )
       ))
     }
   })
-  observeEvent(input$ir_manual_sih, {
+  observeEvent(input$ir_manual_sim, {
     removeModal()
     updateNavbarPage(session, "navbar_id", selected = "Manual")
   })
