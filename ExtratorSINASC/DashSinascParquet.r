@@ -11,57 +11,36 @@ library(leaflet)
 library(leaflet.extras)
 library(purrr)
 
-encontrar_arquivo_susalpha <- function(nome_arquivo, subpasta_esperada = NULL) {
-  bases <- unique(c(
-    getwd(),
-    dirname(getwd()),
-    file.path(Sys.getenv("USERPROFILE"), "OneDrive", "Ambiente de Trabalho"),
-    file.path(Sys.getenv("USERPROFILE"), "OneDrive", "Desktop"),
-    file.path(Sys.getenv("USERPROFILE"), "Ambiente de Trabalho"),
-    file.path(Sys.getenv("USERPROFILE"), "Desktop"),
-    file.path(Sys.getenv("USERPROFILE"), "Downloads"),
-    file.path(Sys.getenv("USERPROFILE"), "Documents")
-  ))
+obter_pasta_app <- function() {
+  # 1. Execução via Rscript --file=...
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("^--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    return(dirname(normalizePath(sub("^--file=", "", file_arg[1]), winslash = "/", mustWork = FALSE)))
+  }
 
-  bases_existentes <- bases[dir.exists(bases)]
-
-  for (base in bases_existentes) {
-    if (!is.null(subpasta_esperada)) {
-      cand_sub <- file.path(base, "SusAlpha", subpasta_esperada, nome_arquivo)
-      if (file.exists(cand_sub)) {
-        return(normalizePath(cand_sub, winslash = "/", mustWork = TRUE))
-      }
-
-      cand_raiz_sub <- file.path(base, subpasta_esperada, nome_arquivo)
-      if (tolower(basename(base)) == "susalpha" && file.exists(cand_raiz_sub)) {
-        return(normalizePath(cand_raiz_sub, winslash = "/", mustWork = TRUE))
-      }
-    }
-
-    cand_dir <- file.path(base, "SusAlpha", nome_arquivo)
-    if (file.exists(cand_dir)) {
-      return(normalizePath(cand_dir, winslash = "/", mustWork = TRUE))
-    }
-
-    if (tolower(basename(base)) == "susalpha" && file.exists(file.path(base, nome_arquivo))) {
-      return(normalizePath(file.path(base, nome_arquivo), winslash = "/", mustWork = TRUE))
-    }
-
-    pasta_sus <- file.path(base, "SusAlpha")
-    if (dir.exists(pasta_sus)) {
-      achados <- list.files(
-        pasta_sus,
-        pattern = paste0("^", gsub("([.|()\\^{}+$*?\\[\\]])", "\\\\\\1", nome_arquivo), "$"),
-        full.names = TRUE,
-        recursive = TRUE
-      )
-      if (length(achados) > 0) {
-        return(normalizePath(achados[1], winslash = "/", mustWork = TRUE))
+  # 2. Execução via source() (ex.: Iniciar_App.bat ou Run/Source no editor)
+  if (sys.nframe() > 0) {
+    for (i in rev(seq_len(sys.nframe()))) {
+      ofile <- sys.frame(i)$ofile
+      if (!is.null(ofile) && nzchar(ofile)) {
+        return(dirname(normalizePath(ofile, winslash = "/", mustWork = FALSE)))
       }
     }
   }
 
-  return(NULL)
+  # 3. Fallback: getwd() (mesmo comportamento do extrator)
+  return(normalizePath(getwd(), winslash = "/", mustWork = FALSE))
+}
+
+# ==============================================================================
+# RAIZ DO APP E DA PASTA EXTRAÍDA
+# ==============================================================================
+pasta_app <- obter_pasta_app()
+pasta_raiz <- if (tolower(basename(pasta_app)) == "extratorsinasc") {
+  dirname(pasta_app)
+} else {
+  pasta_app
 }
 
 # ==============================================================================
@@ -72,15 +51,19 @@ con <- dbConnect(duckdb::duckdb())
 # ==============================================================================
 # CONEXÃO DUCKDB PARA DICIONÁRIOS
 # ==============================================================================
-caminho_dict <- encontrar_arquivo_susalpha("dicionarios.duckdb", "dicionarios")
-if (is.null(caminho_dict)) {
-  stop("Não foi possível encontrar 'dicionarios.duckdb'. Diretório atual: ", getwd())
+candidatos_dict <- unique(c(
+  file.path(pasta_raiz, "dicionarios", "dicionarios.duckdb"),
+  file.path(pasta_app, "dicionarios", "dicionarios.duckdb")
+))
+caminho_dict <- candidatos_dict[file.exists(candidatos_dict)][1]
+
+if (is.na(caminho_dict) || !file.exists(caminho_dict)) {
+  stop("Não foi possível encontrar 'dicionarios.duckdb'. Pasta do app: ", pasta_app)
 }
 
-pasta_susalpha <- dirname(dirname(caminho_dict))
+caminho_dict <- normalizePath(caminho_dict, winslash = "/", mustWork = TRUE)
 con_dict <- dbConnect(duckdb(), caminho_dict, read_only = TRUE)
 
-# Carregar municípios do DuckDB
 municipios_df <- dbGetQuery(con_dict, "
     SELECT 
         id_municipio_6 as id6,
@@ -88,28 +71,36 @@ municipios_df <- dbGetQuery(con_dict, "
         sigla_uf
     FROM municipios
 ")
-
 municipios_df <- as.data.frame(municipios_df)
 
 # ==============================================================================
-# LOCALIZAÇÃO DO CNES (SusAlpha/dicionarios/cnes.duckdb)
+# LOCALIZAÇÃO DO CNES (<pasta_raiz>/dicionarios/cnes.duckdb)
 # ==============================================================================
-cnes_cand <- file.path(pasta_susalpha, "dicionarios", "cnes.duckdb")
-cnes_path <- if (file.exists(cnes_cand)) {
+candidatos_cnes <- unique(c(
+  file.path(pasta_raiz, "dicionarios", "cnes.duckdb"),
+  file.path(pasta_app, "dicionarios", "cnes.duckdb")
+))
+cnes_cand <- candidatos_cnes[file.exists(candidatos_cnes)][1]
+cnes_path <- if (!is.na(cnes_cand) && file.exists(cnes_cand)) {
   normalizePath(cnes_cand, winslash = "/", mustWork = TRUE)
 } else {
-  encontrar_arquivo_susalpha("cnes.duckdb", "dicionarios")
+  NULL
 }
 
 # ==============================================================================
-# CONFIGURAÇÃO DOS PARQUETS
+# CONFIGURAÇÃO DOS PARQUETS (IGUAL AO EXTRATOR: <pasta_app>/Tabelas_Todas/SINASC/FINAL)
 # ==============================================================================
-PATH_DADOS <- file.path(pasta_susalpha, "ExtratorSINASC", "Tabelas_Todas")
+PATH_DADOS <- file.path(pasta_app, "Tabelas_Todas")
 
 listar_parquets_sinasc <- function() {
   caminho_sinasc <- file.path(PATH_DADOS, "SINASC", "FINAL")
   if (dir.exists(caminho_sinasc)) {
-    arquivos <- list.files(caminho_sinasc, pattern = "^FINAL_SINASC_.*\\.parquet$", full.names = TRUE)
+    arquivos <- list.files(
+      caminho_sinasc,
+      pattern = "^FINAL_SINASC_.*\\.parquet$",
+      full.names = TRUE,
+      ignore.case = TRUE
+    )
     return(normalizePath(arquivos, winslash = "/", mustWork = FALSE))
   }
   return(character(0))
@@ -151,6 +142,9 @@ extrair_metadados_parquet <- function(caminho_arquivo) {
 # Função para obter cidades disponíveis
 obter_cidades_disponiveis <- function() {
   arquivos <- listar_parquets_sinasc()
+
+  arqs <- listar_parquets_sinasc()
+message("Parquets encontrados: ", paste(arqs, collapse = " | "))
   
   if(length(arquivos) == 0) return(character(0))
   
