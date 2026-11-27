@@ -94,11 +94,8 @@ Conjunto de **5 aplicativos Shiny independentes** que baixam, filtram e armazena
 
 1. **Baixe** este repositório: botão verde **Code** → **Download ZIP**
 2. **Extraia** o ZIP em uma pasta de sua preferência
-3. **Coloque** o parquet de municípios em `Tabelas_Todas/_METADADOS/`
-   - Baixe em: [basedosdados.org/dataset/br-bd-diretorios-brasil](https://basedosdados.org/dataset/br-bd-diretorios-brasil)
-   - Procure a tabela `municipio` → baixe o `.parquet`
-4. **Duplo clique** em `Iniciar_App.bat` (Windows) ou `iniciar_app.sh` (Linux/Mac)
-5. O navegador abre automaticamente 🎉
+3. **Duplo clique** em `Iniciar_App.bat` (Windows) ou `iniciar_app.sh` (Linux/Mac)
+4. O navegador abre automaticamente 🎉
 
 > ⏳ **Primeira execução:** o app instala os pacotes do R automaticamente. Pode levar de 5 a 20 minutos, dependendo da conexão. Depois disso, abre em segundos.
 
