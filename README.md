@@ -105,6 +105,30 @@ Exemplo: SINASC
 
 
 
+## 🚀 DASHBOARD de ANALISE
+
+<img width="1308" height="594" alt="sinasc_dash" src="https://github.com/user-attachments/assets/aa8442ce-664c-43cc-b20c-4330f2cb8418" />
+
+<img width="1300" height="602" alt="sinasc_dash (2)" src="https://github.com/user-attachments/assets/4ecfde8f-ebc1-40ad-b2ac-5ecd54878b2f" />
+
+<img width="1312" height="678" alt="sinasc_dash 3" src="https://github.com/user-attachments/assets/02f2596b-e99f-4011-8ebf-d9d84331d0fa" />
+
+<img width="1362" height="684" alt="sinasc_dash 4" src="https://github.com/user-attachments/assets/2b274316-e967-49ac-b39f-2d5e2a23f86f" />
+
+<img width="1362" height="682" alt="sinasc_dash 5" src="https://github.com/user-attachments/assets/e9c4867e-6acf-4ca7-8d60-b810c6f5ff8d" />
+
+<img width="1362" height="698" alt="sinasc_dash 6" src="https://github.com/user-attachments/assets/000f5c12-c0d6-47c2-a51b-10e43cd275e6" />
+
+<img width="1362" height="696" alt="sinasc_dash 7" src="https://github.com/user-attachments/assets/7cf80f28-585d-4d32-a1d2-dd723327a71b" />
+
+<img width="1362" height="696" alt="sinasc_dash 8" src="https://github.com/user-attachments/assets/17ab7310-97d8-4f87-80a5-e7e509a81028" />
+
+
+
+
+
+
+
 
 
 
