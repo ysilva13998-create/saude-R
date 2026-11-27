@@ -117,21 +117,25 @@ carregar_dados_completos <- function(codigo_municipio = NULL) {
   
   # Base da query
   query <- "
-    SELECT 
-      cnes AS CNES,
-      nome_estabelecimento AS NOME_ESTABELECIMENTO,
-      latitude AS lat,
-      longitude AS long,
-      ibge AS CODIGO_MUNICIPIO
+    SELECT
+      CNES,
+      NOME_ESTABELECIMENTO,
+      lat,
+      long,
+      CODIGO_MUNICIPIO
     FROM cnes
   "
   
   # Adicionar filtro por município se fornecido
   if(!is.null(codigo_municipio) && codigo_municipio != "") {
-    query <- paste0(query, " WHERE ibge = '", codigo_municipio, "'")
+    query <- paste0(
+      query,
+      " WHERE CODIGO_MUNICIPIO = ",
+      DBI::dbQuoteString(con_duck, as.character(codigo_municipio))
+    )
   }
   
-  query <- paste0(query, " ORDER BY cnes")
+  query <- paste0(query, " ORDER BY CNES")
   
   # Carregar do DuckDB
   df <- dbGetQuery(con_duck, query)
@@ -157,12 +161,13 @@ carregar_dados_completos <- function(codigo_municipio = NULL) {
 # Função para carregar municípios do DuckDB (distinct)
 carregar_municipios <- function() {
   municipios <- dbGetQuery(con_duck, "
-    SELECT DISTINCT 
-      ibge AS codigo,
-      ibge AS nome
-    FROM cnes 
-    WHERE ibge IS NOT NULL AND ibge != ''
-    ORDER BY ibge
+    SELECT DISTINCT
+      CODIGO_MUNICIPIO AS codigo,
+      CODIGO_MUNICIPIO AS nome
+    FROM cnes
+    WHERE CODIGO_MUNICIPIO IS NOT NULL
+      AND CODIGO_MUNICIPIO != ''
+    ORDER BY CODIGO_MUNICIPIO
   ")
   return(municipios)
 }
@@ -178,12 +183,12 @@ salvar_dados_duckdb <- function(df) {
   # Atualizar cada registro individualmente
   for(i in 1:nrow(df_save)) {
     dbExecute(con_duck, "
-      UPDATE cnes 
-      SET latitude = ?, 
-          longitude = ?, 
-          nome_estabelecimento = ?,
-          ibge = ?
-      WHERE cnes = ?
+      UPDATE cnes
+      SET lat = ?,
+          long = ?,
+          NOME_ESTABELECIMENTO = ?,
+          CODIGO_MUNICIPIO = ?
+      WHERE CNES = ?
     ", list(
       ifelse(is.na(df_save$lat[i]), NA, df_save$lat[i]),
       ifelse(is.na(df_save$long[i]), NA, df_save$long[i]),
@@ -200,7 +205,8 @@ salvar_dados_duckdb <- function(df) {
   if(nrow(novos_cnes) > 0) {
     for(i in 1:nrow(novos_cnes)) {
       dbExecute(con_duck, "
-        INSERT INTO cnes (cnes, nome_estabelecimento, latitude, longitude, ibge)
+        INSERT INTO cnes
+          (CNES, NOME_ESTABELECIMENTO, lat, long, CODIGO_MUNICIPIO)
         VALUES (?, ?, ?, ?, ?)
       ", list(
         novos_cnes$CNES[i],
@@ -910,7 +916,7 @@ server <- function(input, output, session) {
     linha_real <- which(df$CNES == cnes_editado)
     
     colunas_ordem <- c("CNES", "NOME_ESTABELECIMENTO", "CODIGO_MUNICIPIO", "lat", "long")
-    colunas_existentes <- colunas_ordem[colunas_existentes %in% names(df_filtrado)]
+    colunas_existentes <- colunas_ordem[colunas_ordem %in% names(df_filtrado)]
     coluna <- colunas_existentes[info$col + 1]
     
     if(coluna %in% c("lat", "long")) {
