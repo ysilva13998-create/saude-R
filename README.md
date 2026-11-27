@@ -81,6 +81,38 @@ Conjunto de **5 aplicativos Shiny independentes** que baixam, filtram e armazena
 </tr>
 </table>
 
+
+
+Exemplo: SINASC
+
+<img width="1282" height="606" alt="sinasc_1" src="https://github.com/user-attachments/assets/c068acbb-df9c-4105-8791-e4eb82200484" />
+
+<img width="1282" height="606" alt="sinasc_2" src="https://github.com/user-attachments/assets/450615d8-9b71-4241-b62c-0b761fdc8db3" />
+
+<img width="1282" height="622" alt="sinasc_3" src="https://github.com/user-attachments/assets/55ff592f-53c9-4769-ba6c-54c7193e2103" />
+
+<img width="1362" height="702" alt="sinasc_5" src="https://github.com/user-attachments/assets/a4ed26c6-5ae6-443d-87c7-db94f6468c3c" />
+
+<img width="1362" height="712" alt="sinasc_6" src="https://github.com/user-attachments/assets/d0d576a5-ba98-47c0-904f-dc9bd052f316" />
+
+<img width="970" height="520" alt="sinasc_7" src="https://github.com/user-attachments/assets/7fc10bad-4dfa-424f-aa01-c7f6632050d0" />
+
+<img width="1362" height="672" alt="sinasc_8" src="https://github.com/user-attachments/assets/c125bc6b-ddd2-4d5a-903c-ed99f329f49b" />
+
+<img width="1286" height="634" alt="sinasc_10" src="https://github.com/user-attachments/assets/0eb619cc-d015-4942-9aa2-70759f481d7c" />
+
+<img width="1282" height="600" alt="sinasc_12" src="https://github.com/user-attachments/assets/e84c9244-5de0-45ba-840a-05f655f29c6b" />
+
+
+
+
+
+
+
+
+
+
+
 ---
 
 ## 🚀 Como começar
