@@ -61,43 +61,142 @@ suppressPackageStartupMessages({
 })
 
 # 2. CONFIGURAÇÃO DE AMBIENTE -----------------------------------------------
-pasta_app <- getwd()
-RAIZ      <- file.path(pasta_app, "Tabelas_Todas")
-DB_PATH   <- file.path(pasta_app, "cnes.duckdb")
 
-# Caminho para o parquet de municípios (mesmo padrão do SIA/SIH)
-MUNICIPIOS_PATH <- file.path(RAIZ, "_METADADOS", "br_bd_diretorios_brasil_municipio.parquet")
+# Localiza a pasta deste script, mesmo quando executado por Rscript ou source().
+obter_pasta_script <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("^--file=", args, value = TRUE)
+
+  if (length(file_arg) > 0) {
+    arquivo <- sub("^--file=", "", file_arg[1])
+    return(dirname(normalizePath(arquivo, winslash = "/", mustWork = FALSE)))
+  }
+
+  if (sys.nframe() > 0) {
+    for (i in rev(seq_len(sys.nframe()))) {
+      ofile <- sys.frame(i)$ofile
+      if (!is.null(ofile) && nzchar(ofile)) {
+        return(dirname(normalizePath(ofile, winslash = "/", mustWork = FALSE)))
+      }
+    }
+  }
+
+  normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+}
+
+pasta_script <- obter_pasta_script()
+
+# Mantém o mesmo critério de localização usado pelo GEO_CNES.R.
+pasta_raiz <- if (tolower(basename(pasta_script)) %in% c("extratorcnes", "extratorsinasc")) {
+  dirname(pasta_script)
+} else {
+  pasta_script
+}
+
+pasta_app <- pasta_script
+RAIZ <- file.path(pasta_raiz, "Tabelas_Todas")
+
+# Banco compartilhado com o analisador GEO_CNES.R.
+PASTA_DICIONARIOS <- file.path(pasta_raiz, "dicionarios")
+dir.create(PASTA_DICIONARIOS, recursive = TRUE, showWarnings = FALSE)
+DB_PATH <- file.path(PASTA_DICIONARIOS, "cnes.duckdb")
+
+# Metadados usados para carregar os municípios no filtro.
+MUNICIPIOS_PATH <- file.path(
+  pasta_app,
+  "Tabelas_Todas",
+  "_METADADOS",
+  "br_bd_diretorios_brasil_municipio.parquet"
+)
 
 dir.create(file.path(RAIZ, "CNES", "FINAL"), recursive = TRUE, showWarnings = FALSE)
 
-cat("📂 Pasta do app   :", pasta_app, "\n")
+cat("📂 Pasta do script:", pasta_script, "\n")
+cat("📂 Raiz do projeto:", pasta_raiz, "\n")
 cat("📂 Pasta de dados :", RAIZ, "\n")
+cat("📂 Dicionários    :", PASTA_DICIONARIOS, "\n")
 cat("📂 Banco DuckDB   :", DB_PATH, "\n")
 cat("📂 Metadados      :", MUNICIPIOS_PATH, "\n\n")
 
-# 3. CONEXÃO E CRIAÇÃO DA TABELA NO DUCKDB ----------------------------------
+if (!dir.exists(RAIZ)) {
+  stop("A pasta Tabelas_Todas não foi encontrada em: ", RAIZ)
+}
+
+# 3. CONEXÃO E ESTRUTURA DO DUCKDB ------------------------------------------
 con <- dbConnect(duckdb::duckdb(), dbdir = DB_PATH, read_only = FALSE)
 
-# Garante que o banco feche ao sair
+# Fecha a conexão quando o aplicativo Shiny for encerrado.
 onStop(function() {
   try(dbDisconnect(con, shutdown = TRUE), silent = TRUE)
 })
 
 criar_tabela_cnes <- function(con) {
-  dbExecute(con, "
-    CREATE TABLE IF NOT EXISTS cnes (
-      cnes VARCHAR PRIMARY KEY,
-      ibge VARCHAR,
-      nome_estabelecimento VARCHAR,
-      latitude DOUBLE,
-      longitude DOUBLE,
-      ultima_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  ")
-  dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_cnes_ibge ON cnes(ibge);")
+  if (!dbExistsTable(con, "cnes")) {
+    dbExecute(con, '
+      CREATE TABLE cnes (
+        "CNES" VARCHAR PRIMARY KEY,
+        "NOME_ESTABELECIMENTO" VARCHAR,
+        "CODIGO_MUNICIPIO" VARCHAR,
+        "lat" DOUBLE,
+        "long" DOUBLE
+      )
+    ')
+    cat("Tabela cnes criada no novo formato.\n")
+    return(invisible(TRUE))
+  }
+
+  colunas <- tolower(dbListFields(con, "cnes"))
+  colunas_novas <- c("cnes", "nome_estabelecimento", "codigo_municipio", "lat", "long")
+  colunas_antigas <- c("cnes", "ibge", "nome_estabelecimento", "latitude", "longitude")
+
+  if (all(colunas_novas %in% colunas)) {
+    cat("Tabela cnes já está no formato de cinco colunas.\n")
+    return(invisible(TRUE))
+  }
+
+  if (all(colunas_antigas %in% colunas)) {
+    if (dbExistsTable(con, "cnes_nova")) {
+      stop("A tabela auxiliar cnes_nova já existe. Verifique o banco antes de migrar.")
+    }
+
+    cat("Migrando a tabela cnes antiga para o novo formato...\n")
+    dbExecute(con, '
+      CREATE TABLE cnes_nova (
+        "CNES" VARCHAR PRIMARY KEY,
+        "NOME_ESTABELECIMENTO" VARCHAR,
+        "CODIGO_MUNICIPIO" VARCHAR,
+        "lat" DOUBLE,
+        "long" DOUBLE
+      )
+    ')
+
+    dbExecute(con, '
+      INSERT INTO cnes_nova
+        ("CNES", "NOME_ESTABELECIMENTO", "CODIGO_MUNICIPIO", "lat", "long")
+      SELECT
+        cnes,
+        nome_estabelecimento,
+        ibge,
+        latitude,
+        longitude
+      FROM cnes
+    ')
+
+    dbExecute(con, "DROP TABLE cnes")
+    dbExecute(con, "ALTER TABLE cnes_nova RENAME TO cnes")
+    cat("Migração concluída. Coordenadas existentes foram preservadas.\n")
+    return(invisible(TRUE))
+  }
+
+  stop(
+    "A tabela cnes existe, mas sua estrutura não corresponde ao formato antigo nem ao novo. ",
+    "Colunas encontradas: ", paste(colunas, collapse = ", "),
+    ". Faça uma cópia de segurança e revise o banco antes de continuar."
+  )
 }
+
 criar_tabela_cnes(con)
-cat("✅ Tabela 'cnes' pronta no banco DuckDB.\n\n")
+cat("✅ Tabela 'cnes' pronta em: ", DB_PATH, "\n\n")
 
 # 4. CONSTANTES -------------------------------------------------------------
 MESES_PT <- c("Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -166,22 +265,22 @@ ui_manual <- function() {
       p("Dados brutos (Parquet):"),
       div(class = "manual-code", "Tabelas_Todas/CNES/FINAL/FINAL_CNES-<SISTEMA>_<UF>_<CIDADE>_<ANO>_<MÊS>.parquet"),
       p("Banco de dados (DuckDB):"),
-      div(class = "manual-code", "cnes.duckdb (tabela cnes)"),
-      p("A tabela cnes guarda apenas:"),
+      div(class = "manual-code", "dicionarios/cnes.duckdb (tabela cnes)"),
+      p("A tabela cnes possui exatamente cinco colunas:"),
       tags$ul(
-        tags$li(code("cnes"), " - Código do estabelecimento (vem do DATASUS)"),
-        tags$li(code("ibge"), " - Código do município (vem do DATASUS)"),
-        tags$li(code("nome_estabelecimento"), " - Nome (NÃO vem do DATASUS, fica NULL)"),
-        tags$li(code("latitude"), " - Latitude (NÃO vem do DATASUS, fica NULL)"),
-        tags$li(code("longitude"), " - Longitude (NÃO vem do DATASUS, fica NULL)")
+        tags$li(code("CNES"), " - Código do estabelecimento"),
+        tags$li(code("NOME_ESTABELECIMENTO"), " - Nome fantasia ou razão social, quando disponível no CNES-ST"),
+        tags$li(code("CODIGO_MUNICIPIO"), " - Código IBGE do município"),
+        tags$li(code("lat"), " - Latitude, preservada para preenchimento pelo analisador"),
+        tags$li(code("long"), " - Longitude, preservada para preenchimento pelo analisador")
       )
     ),
 
     div(class = "manual-alert",
       icon("triangle-exclamation"), strong(" Importante:"),
-      " O DATASUS não fornece nome, latitude e longitude dos estabelecimentos. ",
-      "Essas colunas são criadas no banco (vazias) para que você possa preenchê-las depois ",
-      "(via API do Google Maps, base dos dados, ou manualmente). O código do CNES e o IBGE são preenchidos automaticamente."
+      " O nome do estabelecimento é extraído do CNES-ST quando a coluna está disponível. ",
+      "Latitude e longitude são mantidas no banco para preenchimento pelo analisador ou manualmente. ",
+      "Ao reprocessar os dados, o extrator não apaga coordenadas já existentes."
     ),
 
     div(class = "manual-box",
@@ -190,7 +289,7 @@ ui_manual <- function() {
       tags$ul(
         tags$li(strong("1."), " Baixa o microdado bruto via ", code("fetch_datasus")),
         tags$li(strong("2."), " Salva o Parquet em ", code("Tabelas_Todas/CNES/FINAL/")),
-        tags$li(strong("3."), " Extrai ", code("CNES"), " e ", code("CODUFMUN"), " e faz um UPSERT (insert ou update) no banco ", code("cnes.duckdb"))
+        tags$li(strong("3."), " Extrai CNES, nome e código do município e atualiza a tabela de cinco colunas em ", code("dicionarios/cnes.duckdb"))
       )
     ),
 
@@ -260,7 +359,7 @@ ui <- navbarPage(
                        icon = icon("play"), style = "width:100%;"),
           br(), br(),
           helpText("Salva Parquet em: ", tags$code("Tabelas_Todas/CNES/FINAL/")),
-          helpText("Atualiza banco: ", tags$code("cnes.duckdb")),
+          helpText("Atualiza banco: ", tags$code("dicionarios/cnes.duckdb")),
           helpText("Timeout: 600s por download.")
         ),
 
@@ -320,51 +419,123 @@ server <- function(input, output, session) {
     )
   })
 
-  # Função para fazer UPSERT no banco
-  upsert_cnes <- function(df, con) {
-    col_cnes <- intersect(names(df), c("CNES", "CO_CNES"))[1]
-    col_ibge <- intersect(names(df), c("CODUFMUN", "CO_MUNICIPIO", "MUNIC_RES", "CODMUNRES"))[1]
+  # Função para inserir/atualizar CNES sem apagar coordenadas existentes.
+ 
+upsert_cnes <- function(df, con) {
 
-    if (is.na(col_cnes) || is.na(col_ibge)) {
-      return(list(inseridos = 0, atualizados = 0))
-    }
+  col_cnes <- intersect(names(df), c("CNES", "CO_CNES"))[1]
 
-    novos <- df %>%
-      dplyr::transmute(
-        cnes = as.character(.data[[col_cnes]]),
-        ibge = as.character(.data[[col_ibge]])
-      ) %>%
-      dplyr::distinct(cnes, .keep_all = TRUE) %>%
-      dplyr::filter(!is.na(cnes) & cnes != "")
+  col_ibge <- intersect(
+    names(df),
+    c("CODUFMUN", "CO_MUNICIPIO", "CO_MUNICIPIO_GESTOR",
+      "MUNIC_RES", "CODMUNRES")
+  )[1]
 
-    if (nrow(novos) == 0) return(list(inseridos = 0, atualizados = 0))
-
-    inseridos <- 0
-    atualizados <- 0
-
-    for(i in 1:nrow(novos)) {
-      existe <- dbGetQuery(con, "SELECT COUNT(*) as total FROM cnes WHERE cnes = ?",
-                          list(novos$cnes[i]))$total[1] > 0
-
-      if(existe) {
-        res <- dbExecute(con, "
-          UPDATE cnes
-          SET ibge = COALESCE(?, ibge),
-              ultima_atualizacao = CURRENT_TIMESTAMP
-          WHERE cnes = ?
-        ", list(novos$ibge[i], novos$cnes[i]))
-        atualizados <- atualizados + res
-      } else {
-        res <- dbExecute(con, "
-          INSERT INTO cnes (cnes, ibge, nome_estabelecimento, latitude, longitude)
-          VALUES (?, ?, NULL, NULL, NULL)
-        ", list(novos$cnes[i], novos$ibge[i]))
-        inseridos <- inseridos + res
-      }
-    }
-
-    return(list(inseridos = inseridos, atualizados = atualizados))
+  if (is.na(col_cnes) || is.na(col_ibge)) {
+    cat("   ⚠️ Não foi possível identificar CNES ou código do município.\n")
+    return(list(inseridos = 0, atualizados = 0))
   }
+
+  # Identificar colunas de nome
+  colunas_nome <- intersect(
+    names(df),
+    c("NO_FANTASIA", "NOME_ESTABELECIMENTO",
+      "NOME_FANTASIA", "NO_RAZAO_SOCIAL")
+  )
+
+  # Extrair nomes fora do contexto do dplyr
+  if (length(colunas_nome) > 0) {
+
+    nomes <- lapply(colunas_nome, function(nm) {
+
+      valor <- trimws(as.character(df[[nm]]))
+      valor[!is.na(valor) & valor == ""] <- NA_character_
+      valor
+
+    })
+
+    nome_final <- Reduce(dplyr::coalesce, nomes)
+
+  } else {
+
+    nome_final <- rep(NA_character_, nrow(df))
+
+  }
+
+  # Construir tabela de atualização
+  novos <- data.frame(
+    CNES = trimws(as.character(df[[col_cnes]])),
+    CODIGO_MUNICIPIO = substr(
+      trimws(as.character(df[[col_ibge]])), 1, 6
+    ),
+    NOME_ESTABELECIMENTO = nome_final,
+    stringsAsFactors = FALSE
+  )
+
+  novos <- novos %>%
+    distinct(CNES, .keep_all = TRUE) %>%
+    filter(!is.na(CNES), CNES != "")
+
+  if (nrow(novos) == 0) {
+    return(list(inseridos = 0, atualizados = 0))
+  }
+
+  inseridos <- 0L
+  atualizados <- 0L
+
+  for (i in seq_len(nrow(novos))) {
+
+    existe <- dbGetQuery(
+      con,
+      'SELECT COUNT(*) AS total FROM cnes WHERE "CNES" = ?',
+      params = list(novos$CNES[i])
+    )$total[1] > 0
+
+    if (existe) {
+
+      dbExecute(con, '
+        UPDATE cnes
+        SET
+          "NOME_ESTABELECIMENTO" =
+            COALESCE(?, "NOME_ESTABELECIMENTO"),
+          "CODIGO_MUNICIPIO" =
+            COALESCE(?, "CODIGO_MUNICIPIO")
+        WHERE "CNES" = ?
+      ', params = list(
+        novos$NOME_ESTABELECIMENTO[i],
+        novos$CODIGO_MUNICIPIO[i],
+        novos$CNES[i]
+      ))
+
+      atualizados <- atualizados + 1L
+
+    } else {
+
+      dbExecute(con, '
+        INSERT INTO cnes (
+          "CNES",
+          "NOME_ESTABELECIMENTO",
+          "CODIGO_MUNICIPIO",
+          "lat",
+          "long"
+        )
+        VALUES (?, ?, ?, NULL, NULL)
+      ', params = list(
+        novos$CNES[i],
+        novos$NOME_ESTABELECIMENTO[i],
+        novos$CODIGO_MUNICIPIO[i]
+      ))
+
+      inseridos <- inseridos + 1L
+    }
+  }
+
+  list(
+    inseridos = inseridos,
+    atualizados = atualizados
+  )
+}
+
 
   # Processamento
   observeEvent(input$processar, {
@@ -442,7 +613,10 @@ server <- function(input, output, session) {
           names(dados_full) <- make.names(names(dados_full))
 
           # Identificar coluna de município
-          col_ibge <- intersect(names(dados_full), c("CODUFMUN", "CO_MUNICIPIO", "MUNIC_RES", "CODMUNRES"))[1]
+          col_ibge <- intersect(
+            names(dados_full),
+            c("CODUFMUN", "CO_MUNICIPIO", "CO_MUNICIPIO_GESTOR", "MUNIC_RES", "CODMUNRES")
+          )[1]
 
           if (is.na(col_ibge)) {
              cat("   ⚠️ Coluna de município não encontrada.\n")
@@ -535,9 +709,19 @@ server <- function(input, output, session) {
   # Visualização do Banco
   output$tabela_banco <- renderDT({
     df <- tryCatch({
-      dbGetQuery(con, "SELECT cnes, ibge, nome_estabelecimento, latitude, longitude, ultima_atualizacao FROM cnes LIMIT 500")
+      dbGetQuery(con, '
+        SELECT
+          "CNES",
+          "NOME_ESTABELECIMENTO",
+          "CODIGO_MUNICIPIO",
+          "lat",
+          "long"
+        FROM cnes
+        ORDER BY "CNES"
+        LIMIT 500
+      ')
     }, error = function(e) {
-      data.frame(Mensagem = "Nenhum registro no banco ainda.")
+      data.frame(Mensagem = paste("Não foi possível consultar a tabela:", conditionMessage(e)))
     })
 
     datatable(df,
@@ -565,7 +749,7 @@ server <- function(input, output, session) {
             tags$li("Use o menu superior para alternar entre ", strong("Extrator"), " e ", strong("Manual"), "."),
             tags$li("Selecione sistema, UF, municípios, anos e meses; clique em ", strong("Processar"), "."),
             tags$li("Parquet vão para ", code("Tabelas_Todas/CNES/FINAL/"), "."),
-            tags$li("Banco atualiza ", code("cnes.duckdb"), " com CNES + IBGE.")
+            tags$li("Banco compartilhado atualizado em ", code("dicionarios/cnes.duckdb"), " com cinco colunas CNES.")
           )
         )
       ))
