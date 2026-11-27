@@ -1,0 +1,48 @@
+=============================================================
+  IRATI ANALYTICS 2026 - INSTRUÇÕES DE USO
+=============================================================
+
+PRÉ-REQUISITOS
+--------------
+1. R instalado (versão 4.0 ou superior)
+   → https://cran.r-project.org/
+2. (Opcional) RStudio: https://posit.co/download/rstudio-desktop/
+
+COMO ABRIR O APP
+----------------
+Opção A (RStudio - recomendado):
+  1. Abra o RStudio
+  2. Menu File > Open File... > selecione "app.R"
+  3. Clique no botão "Run App" (canto superior direito)
+
+Opção B (R puro):
+  1. Abra o R
+  2. Execute:  setwd("caminho/da/pasta")
+  3. Execute:  source("app.R")
+
+O QUE ACONTECE NA PRIMEIRA EXECUÇÃO
+-----------------------------------
+- Os pacotes necessários serão instalados automaticamente
+- Pode levar de 5 a 20 minutos dependendo da internet
+- O navegador abrirá o app sozinho ao final
+
+ONDE OS DADOS FICAM SALVOS
+--------------------------
+Pasta "DADOS/" criada ao lado do app.R:
+  DADOS/
+    CIDADE_UF/
+      ANO_2022/
+        CENSO/    → tabelas .parquet
+        MAPAS/    → mapas .parquet
+
+PROBLEMAS COMUNS
+----------------
+- "Pacote não encontrado": feche e abra de novo (a instalação pode ter falhado)
+- "Navegador não abriu": copie a URL do console e cole no navegador
+- "Erro de conexão": verifique sua internet (IBGE precisa estar acessível)
+- "App travou": feche o R, abra de novo e rode outra vez
+
+SUPORTE
+-------
+Consulte a aba "Manual" dentro do app para instruções detalhadas.
+=============================================================

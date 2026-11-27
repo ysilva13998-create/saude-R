@@ -1,0 +1,72 @@
+=============================================================
+  IRATI ANALYTICS 2026 - COMO ABRIR
+=============================================================
+
+✅ MODO MAIS FÁCIL
+------------------
+Windows:  duplo clique em  Iniciar_App.bat
+Linux/Mac: duplo clique em iniciar_app.sh
+           (ou no Terminal: bash iniciar_app.sh)
+
+O navegador abrirá sozinho. Pronto!
+
+
+📋 PRÉ-REQUISITOS (só uma vez)
+------------------------------
+É preciso ter o R instalado:
+  Windows: https://cran.r-project.org/bin/windows/base/
+  Mac:     https://cran.r-project.org/bin/macosx/
+  Linux:   sudo apt install r-base   (Ubuntu/Debian)
+           sudo dnf install R         (Fedora)
+
+
+⏳ PRIMEIRA EXECUÇÃO
+-------------------
+Na primeira vez, os pacotes do R serão instalados
+automaticamente. Isso pode levar de 5 a 20 minutos,
+dependendo da velocidade da sua internet.
+
+A janela do .bat vai mostrar o progresso. Aguarde!
+Nas próximas vezes, abre em segundos.
+
+
+📁 ONDE OS DADOS FICAM
+----------------------
+A pasta "DADOS/" é criada automaticamente ao lado
+do app.R. Você pode copiá-la para outro computador
+para reaproveitar o que já foi baixado.
+
+
+❓ PROBLEMAS COMUNS
+-------------------
+- "O R nao foi encontrado"
+    → Instale o R e execute o atalho de novo.
+
+- "Pacote não encontrado" no console
+    → Feche a janela e rode o .bat novamente.
+      Às vezes a instalação de pacotes falha por
+      instabilidade de rede.
+
+- Navegador não abriu
+    → Copie a URL que aparecer na janela preta
+      (ex: http://127.0.0.1:5678) e cole no navegador.
+
+- App travou / lento
+    → Feche a janela preta. Rode de novo.
+      Se persistir, delete a pasta DADOS/ e recomece.
+
+- Linux/Mac: "Permission denied"
+    → Rode no Terminal:  chmod +x iniciar_app.sh
+
+
+💡 DICA
+-------
+Se você usa Windows e quer abrir sem janela preta,
+use o Iniciar_App.vbs (mas só depois da primeira
+execução do .bat, para os pacotes já estarem prontos).
+
+
+📚 MAIS AJUDA
+-------------
+Dentro do app, clique em "Manual" no menu lateral.
+=============================================================
