@@ -1,0 +1,70 @@
+=============================================================
+  EXTRATOR SINASC - COMO ABRIR
+=============================================================
+
+✅ MODO MAIS FÁCIL
+------------------
+Windows:    duplo clique em  Iniciar_App.bat
+Linux/Mac:  duplo clique em iniciar_app.sh
+            (ou: bash iniciar_app.sh)
+
+O navegador abre sozinho.
+
+
+📋 PRÉ-REQUISITO (só uma vez)
+-----------------------------
+Ter o R instalado:
+  Windows: https://cran.r-project.org/bin/windows/base/
+  Mac:     https://cran.r-project.org/bin/macosx/
+  Linux:   sudo apt install r-base
+
+
+⏳ PRIMEIRA EXECUÇÃO
+-------------------
+Os pacotes do R são instalados automaticamente.
+Pode levar de 5 a 15 minutos. Aguarde!
+
+
+📁 ONDE OS ARQUIVOS FICAM
+-------------------------
+Tabelas_Todas/SINASC/FINAL/
+  FINAL_SINASC_<UF>_<CIDADE>_<ANO>.parquet
+
+Os metadados de municípios devem estar em:
+  Tabelas_Todas/_METADADOS/br_bd_diretorios_brasil_municipio.parquet
+
+
+ℹ️ SOBRE O SINASC
+----------------
+O SINASC é anual: não há seleção de mês.
+Um arquivo por cidade/ano.
+
+O filtro considera:
+  - município de residência da mãe (CODMUNRES)
+  - município de nascimento (CODMUNNASC)
+Traz linhas onde qualquer um dos dois é a cidade escolhida.
+
+
+❓ PROBLEMAS COMUNS
+-------------------
+- "O R nao foi encontrado"
+    → Instale o R e execute novamente.
+
+- "Nenhuma cidade na lista"
+    → Falta o parquet de metadados em _METADADOS/.
+      Baixe em: https://basedosdados.org/dataset/br-bd-diretorios-brasil
+
+- "Timeout ao baixar"
+    → Diminua a quantidade de anos por vez.
+
+- Navegador não abriu
+    → Copie a URL do console e cole no navegador.
+
+- Linux/Mac: "Permission denied"
+    → chmod +x iniciar_app.sh
+
+
+📚 MAIS AJUDA
+-------------
+Dentro do app, clique em "Manual" no topo.
+=============================================================
